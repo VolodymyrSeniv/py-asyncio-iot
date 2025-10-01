@@ -28,13 +28,9 @@ class IOTService:
         self.devices: dict[str, Device] = {}
 
     async def register_device(self, device: Device) -> str:
-        async with asyncio.TaskGroup() as tg:
-            task_1 = tg.create_task(device.connect())
-            device_id = tg.create_task(generate_id())
-            await task_1
-            await device_id
-            self.devices[device_id.result()] = device
-        return device_id.result()
+        task_1, device_id = await asyncio.gather(device.connect(), generate_id())
+        self.devices[device_id] = device
+        return device_id
 
     async def unregister_device(self, device_id: str) -> None:
         await self.devices[device_id].disconnect()
@@ -45,10 +41,9 @@ class IOTService:
 
     async def run_program(self, program: list[Message]) -> None:
         print("=====RUNNING PROGRAM======")
-        await asyncio.gather(*(self.send_msg(msg) for msg in program))
+        for msg in program:
+            await self.send_msg(msg)
         print("=====END OF PROGRAM======")
 
     async def send_msg(self, msg: Message) -> None:
-        if msg.device_id not in self.devices:
-           raise ValueError(f"Device with ID {msg.device_id} not found")
         await self.devices[msg.device_id].send_message(msg.msg_type, msg.data)
